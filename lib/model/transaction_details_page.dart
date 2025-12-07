@@ -72,6 +72,22 @@ class TransactionDetailsPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+                // Place Share Receipt button here
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // Implement share functionality
+                    },
+                    icon: const Icon(Icons.share, color: Colors.black),
+                    label: const Text(
+                      'Share Receipt',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
                 Center(
                   child: ElevatedButton.icon(
                     onPressed: () {

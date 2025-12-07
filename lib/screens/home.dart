@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:rental_house_taxation_flutter/screens/compliance_page.dart';
 import 'package:rental_house_taxation_flutter/screens/notification_page.dart';
@@ -238,7 +237,7 @@ Future<double> getTaxAmount() async {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 45, 69, 109),
+        backgroundColor: const Color.fromARGB(255, 18, 20, 68),
         toolbarHeight: 75,
         automaticallyImplyLeading: false,
         title: ListTile(
@@ -305,6 +304,7 @@ Future<double> getTaxAmount() async {
           child: const Icon(Icons.payment, size: 32, color: Colors.white),
         ),
       ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomNav(
         selectedIndex: _selectedIndex,

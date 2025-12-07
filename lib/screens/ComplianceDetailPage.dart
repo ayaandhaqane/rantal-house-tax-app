@@ -25,8 +25,9 @@ class ComplianceDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Compliance Details'),
         centerTitle: true,
-        backgroundColor: const Color.fromARGB(255, 74, 61, 133), // purple color
+        backgroundColor: const  Color.fromARGB(255, 18, 20, 68), // purple color
         foregroundColor: Colors.white,
+        toolbarHeight: 80,
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),

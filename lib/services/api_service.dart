@@ -5,7 +5,7 @@ import 'package:path/path.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  final String baseUrl = "http://192.168.18.8:5000/api";
+  final String baseUrl = "https://rantal-house-taxation-somalia.onrender.com/api";
 
   String? authToken;
 
@@ -351,19 +351,163 @@ Future<Map<String, dynamic>> uploadProfileImage({
   }
 }
 
+Future<List<dynamic>> fetchMessagesForProperty(  ) async {
+final url = Uri.parse('$baseUrl/messages/allMessages'); 
+  print('Fetching citizen messages from: $url');
 
- Future<List<dynamic>> fetchMessages() async {
-    final url = Uri.parse('$baseUrl/messages/allMessages');
-    print('Fetching messages from: $url');
-    final response = await http.get(url, headers: {'Content-Type': 'application/json'});
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer ${authToken}',  // Add your token here
+        'Content-Type': 'application/json',
+      },
+    );
 
     if (response.statusCode == 200) {
-      return json.decode(response.body) as List<dynamic>;
+      final messages = json.decode(response.body) as List<dynamic>;
+
+      // Filter messages to show only overdue or upcoming messages
+      final filteredMessages = messages.where((msg) =>
+          msg['messageType'] == 'overdue' || msg['messageType'] == 'upcoming'
+      ).toList();
+
+      return filteredMessages;
     } else {
-      throw Exception('Failed to load messages: ${response.statusCode} ${response.body}');
+      throw Exception('Failed to load citizen messages: ${response.statusCode} ${response.body}');
+    }
+  } catch (e) {
+    print("Error: $e");
+    throw Exception('Failed to load messages: $e');
+  }
+}
+
+
+
+
+  
+
+  // Fetch overdue messages
+  // Future<List<dynamic>> fetchOverdueMessages() async {
+  //   final url = Uri.parse('$baseUrl/messages/overdueMessages');  
+  //   print('Fetching overdue messages from: $url');
+
+  //   try {
+  //     final response = await http.get(
+  //       url,
+  //       headers: {
+  //         'Authorization': 'Bearer ${authToken}', 
+  //         'Content-Type': 'application/json',
+  //       },
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       return json.decode(response.body) as List<dynamic>;
+  //     } else {
+  //       throw Exception('Failed to load overdue messages: ${response.statusCode} ${response.body}');
+  //     }
+  //   } catch (e) {
+  //     print("Error fetching overdue messages: $e");
+  //     throw Exception('Failed to load overdue messages: $e');
+  //   }
+  // }
+  Future<List<dynamic>> fetchOverdueMessages() async {
+    final url = Uri.parse('$baseUrl/messages/overdueMessages');
+    
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Overdue messages response status: ${response.statusCode}');
+      print('Overdue messages response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Handle different response formats
+        if (data is List) {
+          return data;
+        } else if (data is Map && data.containsKey('messages')) {
+          return data['messages'] as List<dynamic>;
+        } else if (data is Map && data.containsKey('overdueMessages')) {
+          return data['overdueMessages'] as List<dynamic>;
+        } else {
+          // If it's a single message, wrap it in a list
+          return [data];
+        }
+      } else if (response.statusCode == 404) {
+        // No overdue messages found - return empty list
+        print('No overdue messages found');
+        return [];
+      } else {
+        final errorData = json.decode(response.body);
+        final errorMessage = errorData['message'] ?? 'Failed to load overdue messages';
+        print('Error response: $errorMessage');
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('Error fetching overdue messages: $e');
+      if (e.toString().contains('FormatException')) {
+        throw Exception('Invalid response format from server');
+      }
+      throw Exception('Failed to load overdue messages. Please try again.');
     }
   }
 
+  // Fetch upcoming messages
+Future<List<dynamic>> fetchUpcomingMessages({required String recipientGroup}) async {
+  final url = Uri.parse('$baseUrl/messages/upcomingMessages?recipientGroup=$recipientGroup');  
+  print('Fetching upcoming messages from: $url');
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer ${authToken}',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('Upcoming messages response status: ${response.statusCode}');
+    print('Upcoming messages response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      
+      // Handle different response formats
+      if (data is List) {
+        return data;
+      } else if (data is Map && data.containsKey('messages')) {
+        return data['messages'] as List<dynamic>;
+      } else if (data is Map && data.containsKey('upcomingMessages')) {
+        return data['upcomingMessages'] as List<dynamic>;
+      } else {
+        // If it's a single message, wrap it in a list
+        return [data];
+      }
+    } else if (response.statusCode == 404) {
+      // No upcoming messages found - return empty list
+      print('No upcoming messages found');
+      return [];
+    } else {
+      final errorData = json.decode(response.body);
+      final errorMessage = errorData['message'] ?? 'Failed to load upcoming messages';
+      print('Error response: $errorMessage');
+      throw Exception(errorMessage);
+    }
+  } catch (e) {
+    print("Error fetching upcoming messages: $e");
+    if (e.toString().contains('FormatException')) {
+      throw Exception('Invalid response format from server');
+    }
+    throw Exception('Failed to load upcoming messages: $e');
+  }
+}
 
   Future<List<Map<String, dynamic>>> getTransactions(String citizenId) async {
   final url = Uri.parse('$baseUrl/payments/payments/$citizenId');  // Use baseUrl here
@@ -379,6 +523,10 @@ Future<Map<String, dynamic>> uploadProfileImage({
   if (response.statusCode == 200) {
     final data = jsonDecode(response.body);
     return List<Map<String, dynamic>>.from(data['transactions']);
+  } else if (response.statusCode == 404) {
+    // No transactions found - return empty list instead of throwing error
+    print('No transactions found for citizen: $citizenId');
+    return [];
   } else {
     throw Exception('Failed to load transactions: ${response.statusCode}');
   }
@@ -397,14 +545,98 @@ Future<Map<String, dynamic>> uploadProfileImage({
       if (data['status'] == true) {
         return List<Map<String, dynamic>>.from(data['transactions']);
       } else {
-        throw Exception('Failed to load transactions');
+        // If status is false, it might mean no transactions
+        print('No detailed transactions found for citizen: $citizenId');
+        return [];
       }
+    } else if (response.statusCode == 404) {
+      // No transactions found - return empty list instead of throwing error
+      print('No detailed transactions found for citizen: $citizenId (404)');
+      return [];
     } else {
       throw Exception('Failed to load transactions: ${response.statusCode}');
     }
   }
 
+  // Get replies for a specific citizen
+  Future<List<Map<String, dynamic>>> getRepliesForCitizen(String citizenId) async {
+    final url = Uri.parse('$baseUrl/complaints/replies?citizenId=$citizenId');
+    
+    print('Fetching replies from: $url');
+    print('Auth token: ${authToken != null ? 'Present' : 'Missing'}');
+    print('Headers: $headers');
+    
+    final response = await http.get(url, headers: headers);
+    
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.cast<Map<String, dynamic>>();
+    } else if (response.statusCode == 404) {
+      // No replies found - return empty list
+      print('No replies found (404)');
+      return [];
+    } else if (response.statusCode == 401) {
+      print('Authentication failed (401) - check if authToken is set');
+      throw Exception('Authentication failed. Please check your login status.');
+    } else {
+      throw Exception('Failed to load replies: ${response.statusCode}');
+    }
+  }
 
+  // Count unread replies for a citizen
+  Future<int> countUnreadRepliesForCitizen(String citizenId) async {
+    final url = Uri.parse('$baseUrl/complaints/count-unread-replies?citizenId=$citizenId');
+    
+    print('Counting unread replies from: $url');
+    print('Auth token: ${authToken != null ? 'Present' : 'Missing'}');
+    
+    final response = await http.get(url, headers: headers);
+    
+    print('Count response status: ${response.statusCode}');
+    print('Count response body: ${response.body}');
+    
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = jsonDecode(response.body);
+      return data['unreadRepliesCount'] ?? 0;
+    } else if (response.statusCode == 401) {
+      print('Authentication failed (401) for count - check if authToken is set');
+      return 0; // Return 0 instead of throwing error for count
+    } else {
+      print('Failed to count unread replies: ${response.statusCode}');
+      return 0; // Return 0 instead of throwing error for count
+    }
+  }
 
+  // Mark a reply as read
+  Future<void> markReplyAsRead(String complaintId, String citizenId) async {
+    final url = Uri.parse('$baseUrl/complaints/mark-reply-read/$complaintId?citizenId=$citizenId');
+    final response = await http.put(url, headers: headers);
+    
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to mark reply as read: ${response.statusCode}');
+    }
+  }
+
+  // Test if reply endpoints exist
+  Future<bool> testReplyEndpoints() async {
+    try {
+      const String citizenId = '687b8b1fcf94b2ea8888b1fa';
+      final url = Uri.parse('$baseUrl/complaints/replies?citizenId=$citizenId');
+      
+      print('Testing reply endpoint: $url');
+      final response = await http.get(url, headers: headers);
+      
+      print('Test response status: ${response.statusCode}');
+      print('Test response body: ${response.body}');
+      
+      return response.statusCode != 404; // Return true if endpoint exists
+    } catch (e) {
+      print('Error testing reply endpoints: $e');
+      return false;
+    }
+  }
 
 }

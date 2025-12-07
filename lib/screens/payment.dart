@@ -1,9 +1,6 @@
-// import 'dart:developer'; // No longer needed
-
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-// import 'package:jwt_decoder/jwt_decoder.dart';
 
 class PaymentScreen extends StatefulWidget {
   final String authToken;
@@ -232,6 +229,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         backgroundColor: const Color.fromARGB(255, 7, 16, 69),
         foregroundColor: Colors.white,
         elevation: 0,
+        toolbarHeight: 80,
       ),
       body: isFetching
           ? const Center(child: CircularProgressIndicator())
@@ -259,7 +257,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: ElevatedButton(
                       onPressed: isLoading ? null : submitPayment,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF121440),
+                        backgroundColor: const Color.fromARGB(255, 18, 20, 68),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),

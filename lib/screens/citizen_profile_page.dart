@@ -12,8 +12,11 @@ class ProfilePage extends StatefulWidget {
   final String citizenId;
   final String authToken;
 
-  const ProfilePage(
-      {super.key, required this.citizenId, required this.authToken});
+  const ProfilePage({
+    super.key,
+    required this.citizenId,
+    required this.authToken,
+  });
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
@@ -28,7 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String houseNo = "";
   String? profileImagePath;
 
-  File? selectedImage; 
+  File? selectedImage;
 
   bool isLoading = true;
   String? errorMessage;
@@ -40,32 +43,26 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     apiService.setAuthToken(widget.authToken);
-    fetchProfile(); // fetch once when page loads
+    fetchProfile();
   }
 
   Future<void> fetchProfile() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
-      // Do NOT reset selectedImage here, keep it persistent
     });
 
     try {
       final data = await apiService.getCitizenBasicProfile(widget.citizenId);
-      print(data);
       setState(() {
         name = data['name'] ?? "";
         phone = data['phone_number'] ?? "";
         district = data['district'] ?? "";
         houseNo = data['house_no'] ?? "";
         profileImagePath = data['profile_image'];
-
         isLoading = false;
       });
-      print("IMAGE HHHH ${profileImagePath}");
-    } catch (e, stacktrace) {
-      print('Error fetching profile: $e');
-      print('Stacktrace: $stacktrace');
+    } catch (e) {
       setState(() {
         errorMessage = "Failed to load profile data.";
         isLoading = false;
@@ -73,78 +70,85 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 600,
-      maxHeight: 600,
-      imageQuality: 85,
-    );
 
-    if (pickedFile != null) {
-      File pickedImageFile = File(pickedFile.path);
 
-      final bool? confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Confirm Image Upload'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.file(pickedImageFile,
-                  width: 100, height: 100, fit: BoxFit.cover),
-              const SizedBox(height: 12),
-              const Text(
-                  'Do you want to save this image as your profile picture?'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Done'),
-            ),
+Future<void> _pickImage() async {
+  final ImagePicker _picker = ImagePicker();
+  
+  // Pick an image from the gallery
+  final XFile? pickedFile = await _picker.pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 600,
+    maxHeight: 600,
+    imageQuality: 85,
+  );
+
+  if (pickedFile != null) {
+    final pickedImageFile = File(pickedFile.path);
+
+    // Get the file extension
+    String fileExtension = pickedImageFile.path.split('.').last.toLowerCase();
+    if (!['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+      // Show an error if the file type is not allowed
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a JPG, JPEG, or PNG image.')),
+      );
+      return;  // Exit if the file type is invalid
+    }
+
+    // Show a confirmation dialog to upload the image
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Image Upload'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.file(pickedImageFile, width: 100, height: 100, fit: BoxFit.cover),
+            const SizedBox(height: 12),
+            const Text('Do you want to save this image as your profile picture?'),
           ],
         ),
-      );
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Done')),
+        ],
+      ),
+    );
 
-      if (confirm == true) {
-        if (!isValidObjectId(widget.citizenId)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content:
-                    Text('Invalid citizen ID format, cannot upload image.')),
-          );
-          return;
-        }
+    if (confirm == true) {
+      setState(() => selectedImage = pickedImageFile);
+
+      try {
+        // Assuming apiService.uploadProfileImage is defined properly
+        final uploadResponse = await apiService.uploadProfileImage(
+          citizenId: widget.citizenId,
+          imageFile: selectedImage!,
+        );
+        
+        // Success message after uploading
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile image uploaded successfully')),
+        );
 
         setState(() {
-          selectedImage = pickedImageFile;
+          profileImagePath = uploadResponse['profile_image'];  // Update state with the uploaded image URL
         });
-
-        try {
-          final uploadResponse = await apiService.uploadProfileImage(
-            citizenId: widget.citizenId,
-            imageFile: selectedImage!,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Profile image uploaded successfully')),
-          );
-          setState(() {
-            profileImagePath = uploadResponse['profile_image'];
-          });
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Image upload failed: $e')),
-          );
-        }
+      } catch (e) {
+        // Display the error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Image upload failed: $e')),
+        );
       }
     }
+  } else {
+    // No image selected, inform the user
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No image selected')),
+    );
   }
+}
+
 
   bool isValidObjectId(String id) {
     final pattern = RegExp(r'^[a-fA-F0-9]{24}$');
@@ -153,10 +157,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _onNavTapped(int index) {
     if (_selectedIndex == index) return;
-
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
 
     switch (index) {
       case 0:
@@ -187,7 +188,7 @@ class _ProfilePageState extends State<ProfilePage> {
       case 3:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => CompliancePage()),
+          MaterialPageRoute(builder: (context) => const CompliancePage()),
         );
         break;
       case 4:
@@ -199,157 +200,194 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (errorMessage != null) {
-      return Scaffold(
-        body: Center(child: Text(errorMessage!)),
-      );
+      return Scaffold(body: Center(child: Text(errorMessage!)));
     }
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 43, horizontal: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1F0A38),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+appBar: AppBar(
+  backgroundColor: const Color.fromARGB(255, 18, 20, 68),
+  elevation: 6,
+  centerTitle: true,
+  leading: null, // Remove the default leading button
+  title: null,   // Remove the default title
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(bottom: Radius.elliptical(190, 130)),
+  ),
+  toolbarHeight: 240, // Keep the same height for the AppBar
+  flexibleSpace: Stack(
+    clipBehavior: Clip.none,
+    alignment: Alignment.topCenter,
+    children: [
+      // Positioned Title and Back Icon to go upwards
+      Positioned(
+        top: 20,  // Adjust this value to control how far upwards the text and back icon go
+        left: 0,
+        right: 0,
+        bottom: 140,
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            const Expanded(
+              child: Text(
+                'Profile',
+                textAlign: TextAlign.center, // Center the title
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
               ),
             ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    const Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 13),
-                        child: Text(
-                          "Profile",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+          ],
+        ),
+      ),
+      // Profile image
+ Positioned(
+  bottom: -50,  // Move the image downward inside the rounded shape
+  left: 130,    // Adjust left position if needed
+  child: Container(
+    width: 150,
+    height: 150,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.grey[300],
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: selectedImage != null  // If an image is selected, display it
+        ? Image.file(selectedImage!, fit: BoxFit.cover)  // Show the selected image
+        : (profileImagePath != null && profileImagePath!.isNotEmpty)  // If there's a profile image URL
+            ? Image.network(
+                profileImagePath!,
+                fit: BoxFit.cover,
+                loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+                  if (loadingProgress == null) {
+                    return child;
+                  } else {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded / (loadingProgress.expectedTotalBytes ?? 1)
+                            : null,
                       ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-                const SizedBox(height: 30),
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 80,
-                      backgroundColor: Colors.grey[300],
-                      backgroundImage: selectedImage != null
-                          ? FileImage(selectedImage!)
-                          : (profileImagePath != null &&
-                                  profileImagePath!.isNotEmpty)
-                              ? NetworkImage('$profileImagePath')
-                                  as ImageProvider
-                              : null,
-                      child: (selectedImage == null &&
-                              (profileImagePath == null ||
-                                  profileImagePath!.isEmpty))
-                          ? const Icon(Icons.person,
-                              size: 60, color: Colors.white)
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: IconButton(
-                          icon: Icon(Icons.camera_alt, color: Colors.grey[700]),
-                          onPressed: _pickImage,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-              ],
+                    );
+                  }
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  // Display default icon if image fails to load
+                  return const Icon(Icons.person, size: 96, color: Colors.white);
+                },
+              )
+            : const Icon(Icons.person, size: 96, color: Colors.white),  // Default icon when no image
+  ),
+),
+
+
+      // Add button (plus icon) outside the profile image
+      Positioned(
+        left: 220,  // Adjust the left position to place it outside the circle
+        bottom: -30,  // Adjust the bottom position to make sure it's outside the profile image
+        child: Material(
+          color: Colors.transparent, // Ensure the button's background is transparent
+          child: InkWell(
+            onTap: () {
+              print("Add image button clicked");  // Check if tap is detected
+              _pickImage();  // Your image picker logic
+            },
+            child: Container(
+              width: 50,  // Adjust size for better visibility
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8),
+                ],
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 36,  // Adjust icon size for better visibility
+              ),
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ListView(
+        ),
+      ),
+    ],
+  ),
+),
+
+      body: Container(
+        padding: EdgeInsets.fromLTRB(16, 40, 16, bottomPadding),
+        child: Column(
+          children: [
+            
+            const SizedBox(height: 28),
+
+            // info tiles (value below the title)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
                 children: [
-                  _profileField(Icons.person, "Name", name),
-                  _profileField(Icons.phone, "Phone", phone),
-                  _profileField(Icons.location_on, "District", district),
-                  _profileField(Icons.house_siding, "House No", houseNo),
-                  const SizedBox(height: 20),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (context) => SignInScreen()),
-                        (route) => false,
-                      );
-                    },
-                    icon: const Icon(Icons.logout, color: Colors.red),
-                    label: const Text(
-                      "Logout",
-                      style: TextStyle(
-                          color: Colors.red, fontWeight: FontWeight.bold),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red, width: 2),
-                      padding: const EdgeInsets.all(15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                  ),
+                  _infoTile(icon: Icons.person_outline, title: "Name", value: name),
+                  _infoTile(icon: Icons.phone_outlined, title: "Phone", value: phone),
+                  _infoTile(icon: Icons.location_on_outlined, title: "District", value: district),
+                  _infoTile(icon: Icons.home_outlined, title: "House No", value: houseNo),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
 
-      floatingActionButton: Padding(
+            const SizedBox(height: 20),
+
+            // logout
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const SignInScreen()),
+                    (route) => false,
+                  );
+                },
+                icon: const Icon(Icons.logout, color: Colors.black87),
+                label: const Text(
+                  "Log out",
+                  style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  side: BorderSide(color: Colors.black.withOpacity(0.2), width: 1.6),
+                  shape: const StadiumBorder(),
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: bottomPadding + 6),
         child: FloatingActionButton(
           onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => PaymentScreen(
-                  authToken: widget.authToken,
-                  citizenId: widget.citizenId,
-                ),
-              ),
+                  builder: (context) => PaymentScreen(
+                        authToken: widget.authToken,
+                        citizenId: widget.citizenId,
+                      )),
             );
           },
           backgroundColor: const Color(0xFF121440),
           child: const Icon(Icons.payment, size: 32, color: Colors.white),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomNav(
         selectedIndex: _selectedIndex,
         onTap: _onNavTapped,
@@ -361,48 +399,43 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _profileField(IconData icon, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: Colors.grey, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "$label:",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.only(left: 0),
-                    height: 1.5,
-                    color: Colors.grey[400],
-                    width: double.infinity,
-                  ),
-                ],
-              ),
-            ),
-          ],
+  Widget _infoTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    VoidCallback? onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 243, 243, 243),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.black87),
         ),
-        const SizedBox(height: 25),
-      ],
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black87)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.black54, fontSize: 14),
+          ),
+        ),
+        onTap: onTap,
+      ),
     );
   }
 }
